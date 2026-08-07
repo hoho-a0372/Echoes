@@ -7,17 +7,23 @@ public class PingProjectile : MonoBehaviour
     [SerializeField] float flashRadius = 3f;
     [SerializeField] float flashDuration = 0.4f;
     [SerializeField] float lifespan = 4f;
+    [SerializeField] int maxBounces = 1;
 
     Light2D light2D;
     float initialOuterRadius;
     float initialIntensity;
     Rigidbody2D rb;
-    bool hasHit;
+    int bouncesRemaining;
+    bool isFinished;
+
+    public int BouncesRemaining => bouncesRemaining;
+    public bool IsFinished => isFinished;
 
     void Start()
     {
         light2D = GetComponent<Light2D>();
         rb = GetComponent<Rigidbody2D>();
+        bouncesRemaining = maxBounces;
 
         if (light2D != null)
         {
@@ -30,17 +36,64 @@ public class PingProjectile : MonoBehaviour
 
     void OnCollisionEnter2D(Collision2D col)
     {
-        if (hasHit) return;
+        if (isFinished) return;
+        if (!col.gameObject.CompareTag("Wall")) return;
 
-        if (col.gameObject.CompareTag("Wall"))
+        if (bouncesRemaining > 0)
         {
-            hasHit = true;
+            bouncesRemaining--;
+            Vector2 normal = col.GetContact(0).normal;
+            if (rb != null)
+            {
+                // The physics solver has already resolved the collision (and damped
+                // rb.linearVelocity into the wall) by the time this callback fires, so
+                // reflect the pre-impact approach velocity instead of the current one.
+                // Collision2D.relativeVelocity is (other velocity - this velocity), so
+                // negate it to recover this body's own incoming direction of travel.
+                rb.linearVelocity = Vector2.Reflect(-col.relativeVelocity, normal);
+            }
+            StartCoroutine(BounceFlash());
+        }
+        else
+        {
+            isFinished = true;
             if (rb != null)
             {
                 rb.linearVelocity = Vector2.zero;
             }
             StartCoroutine(FlashAndDestroy());
         }
+    }
+
+    IEnumerator BounceFlash()
+    {
+        if (light2D == null) yield break;
+
+        float bounceRadius = flashRadius * 0.5f;
+        float rampDuration = 0.08f;
+        float holdDuration = 0.1f;
+
+        float t = 0f;
+        float startRadius = light2D.pointLightOuterRadius;
+        while (t < rampDuration)
+        {
+            t += Time.deltaTime;
+            light2D.pointLightOuterRadius = Mathf.Lerp(startRadius, bounceRadius, t / rampDuration);
+            yield return null;
+        }
+        light2D.pointLightOuterRadius = bounceRadius;
+
+        yield return new WaitForSeconds(holdDuration);
+
+        t = 0f;
+        startRadius = light2D.pointLightOuterRadius;
+        while (t < rampDuration)
+        {
+            t += Time.deltaTime;
+            light2D.pointLightOuterRadius = Mathf.Lerp(startRadius, initialOuterRadius, t / rampDuration);
+            yield return null;
+        }
+        light2D.pointLightOuterRadius = initialOuterRadius;
     }
 
     IEnumerator FlashAndDestroy()
