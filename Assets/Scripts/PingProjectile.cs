@@ -7,6 +7,7 @@ public class PingProjectile : MonoBehaviour
     [SerializeField] float flashRadius = 3f;
     [SerializeField] float flashDuration = 0.4f;
     [SerializeField] float lifespan = 4f;
+    [SerializeField] float RevealDuration = 0.7f;
 
     Light2D light2D;
     float initialOuterRadius;
@@ -36,7 +37,7 @@ public class PingProjectile : MonoBehaviour
     {
         // Collisions are restricted to Wall via the physics layer matrix;
         // this tag check is a defensive fallback.
-        if (!col.gameObject.CompareTag("Wall")) return;
+        if (!col.gameObject.CompareTag("Wall") && !col.gameObject.CompareTag("Enemy")) return;
 
         if (rb != null)
         {
@@ -103,7 +104,7 @@ public class PingProjectile : MonoBehaviour
             ShadowEnemy enemy = hit.GetComponent<ShadowEnemy>();
             if (enemy != null)
             {
-                enemy.Reveal(0.5f);
+                enemy.Reveal(RevealDuration);
             }
         }
 
