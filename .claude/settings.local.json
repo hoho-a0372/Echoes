@@ -1,5 +1,16 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m \"Initial commit -Echoes Project-\")",
+      "mcp__unity-mcp__Unity_RunCommand",
+      "mcp__unity-mcp__Unity_GetConsoleLogs",
+      "Bash(git commit -m 'add prototype')"
+    ]
+  },
   "enabledPlugins": {
     "andrej-karpathy-skills@karpathy-skills": true
-  }
+  },
+  "enabledMcpjsonServers": [
+    "mcp-unity"
+  ]
 }

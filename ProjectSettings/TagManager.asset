@@ -12,11 +12,11 @@ TagManager:
   - 
   - Water
   - UI
+  - Wall
   - 
+  - Player
   - 
-  - 
-  - 
-  - 
+  - Ping
   - 
   - 
   - 
@@ -41,6 +41,15 @@ TagManager:
   m_SortingLayers:
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: Wall
+    uniqueID: 337494797
+    locked: 0
+  - name: Player
+    uniqueID: 2569457345
+    locked: 0
+  - name: New Layer 3
+    uniqueID: 2204329255
     locked: 0
   m_RenderingLayers:
   - Default

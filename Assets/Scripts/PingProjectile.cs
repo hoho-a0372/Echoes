@@ -7,23 +7,16 @@ public class PingProjectile : MonoBehaviour
     [SerializeField] float flashRadius = 3f;
     [SerializeField] float flashDuration = 0.4f;
     [SerializeField] float lifespan = 4f;
-    [SerializeField] int maxBounces = 1;
 
     Light2D light2D;
     float initialOuterRadius;
     float initialIntensity;
     Rigidbody2D rb;
-    int bouncesRemaining;
-    bool isFinished;
-
-    public int BouncesRemaining => bouncesRemaining;
-    public bool IsFinished => isFinished;
 
     void Start()
     {
         light2D = GetComponent<Light2D>();
         rb = GetComponent<Rigidbody2D>();
-        bouncesRemaining = maxBounces;
 
         if (light2D != null)
         {
@@ -32,68 +25,58 @@ public class PingProjectile : MonoBehaviour
         }
 
         Destroy(gameObject, lifespan);
+
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayPingLaunch();
+        }
     }
 
     void OnCollisionEnter2D(Collision2D col)
     {
-        if (isFinished) return;
+        // Collisions are restricted to Wall via the physics layer matrix;
+        // this tag check is a defensive fallback.
         if (!col.gameObject.CompareTag("Wall")) return;
 
-        if (bouncesRemaining > 0)
+        if (rb != null)
         {
-            bouncesRemaining--;
-            Vector2 normal = col.GetContact(0).normal;
-            if (rb != null)
-            {
-                // The physics solver has already resolved the collision (and damped
-                // rb.linearVelocity into the wall) by the time this callback fires, so
-                // reflect the pre-impact approach velocity instead of the current one.
-                // Collision2D.relativeVelocity is (other velocity - this velocity), so
-                // negate it to recover this body's own incoming direction of travel.
-                rb.linearVelocity = Vector2.Reflect(-col.relativeVelocity, normal);
-            }
-            StartCoroutine(BounceFlash());
+            rb.linearVelocity = Vector2.zero;
         }
-        else
+
+        if (AudioManager.Instance != null)
         {
-            isFinished = true;
-            if (rb != null)
-            {
-                rb.linearVelocity = Vector2.zero;
-            }
-            StartCoroutine(FlashAndDestroy());
+            GameObject player = GameObject.FindWithTag("Player");
+            float distance = player != null ? Vector2.Distance(transform.position, player.transform.position) : 0f;
+            AudioManager.Instance.PlayWallHit(distance);
         }
-    }
 
-    IEnumerator BounceFlash()
-    {
-        if (light2D == null) yield break;
-
-        float bounceRadius = flashRadius * 0.5f;
-        float rampDuration = 0.08f;
-        float holdDuration = 0.1f;
-
-        float t = 0f;
-        float startRadius = light2D.pointLightOuterRadius;
-        while (t < rampDuration)
+        if (CameraShake.Instance != null)
         {
-            t += Time.deltaTime;
-            light2D.pointLightOuterRadius = Mathf.Lerp(startRadius, bounceRadius, t / rampDuration);
-            yield return null;
+            CameraShake.Instance.Shake(0.05f, 0.05f);
         }
-        light2D.pointLightOuterRadius = bounceRadius;
 
-        yield return new WaitForSeconds(holdDuration);
-
-        t = 0f;
-        startRadius = light2D.pointLightOuterRadius;
-        while (t < rampDuration)
+        // Disable the collider immediately so this projectile stops being a
+        // physical obstacle for the rest of its (invisible) flash-and-destroy
+        // lifetime.
+        Collider2D col2D = GetComponent<Collider2D>();
+        if (col2D != null)
         {
-            t += Time.deltaTime;
-            light2D.pointLightOuterRadius = Mathf.Lerp(startRadius, initialOuterRadius, t / rampDuration);
-            yield return null;
+            col2D.enabled = false;
         }
-        light2D.pointLightOuterRadius = initialOuterRadius;
+
+        // Hide via alpha=0 rather than disabling the SpriteRenderer outright -
+        // an object with no active Renderer gets culled from the URP 2D
+        // per-object render list entirely, which also suppressed this same
+        // object's own Light2D from rendering during the flash.
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            Color c = sr.color;
+            c.a = 0f;
+            sr.color = c;
+        }
+
+        StartCoroutine(FlashAndDestroy());
     }
 
     IEnumerator FlashAndDestroy()
@@ -113,6 +96,16 @@ public class PingProjectile : MonoBehaviour
             yield return null;
         }
         light2D.pointLightOuterRadius = flashRadius;
+
+        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, flashRadius);
+        foreach (Collider2D hit in hits)
+        {
+            ShadowEnemy enemy = hit.GetComponent<ShadowEnemy>();
+            if (enemy != null)
+            {
+                enemy.Reveal(0.5f);
+            }
+        }
 
         yield return new WaitForSeconds(flashDuration);
 
