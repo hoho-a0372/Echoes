@@ -52,7 +52,14 @@ public class CameraFollow : MonoBehaviour
 
         basePosition = smoothed;
 
+        // Shake is added on top of the already-clamped base position - without
+        // re-clamping here, shake jitter could push the camera's actual rendered
+        // position past the map edge (e.g. right when a wall-hit ping shake fires
+        // near a boundary), revealing empty space beyond the walls.
         Vector3 shakeOffset = CameraShake.Instance != null ? CameraShake.Instance.CurrentOffset : Vector3.zero;
-        transform.position = smoothed + shakeOffset;
+        Vector3 finalPos = smoothed + shakeOffset;
+        finalPos.x = Mathf.Clamp(finalPos.x, minBounds.x + camHalfWidth, maxBounds.x - camHalfWidth);
+        finalPos.y = Mathf.Clamp(finalPos.y, minBounds.y + camHalfHeight, maxBounds.y - camHalfHeight);
+        transform.position = finalPos;
     }
 }
