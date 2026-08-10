@@ -13,12 +13,18 @@ public class HybridPlayerController : MonoBehaviour
     [SerializeField] float indicatorOffset = 0.4f;
     [SerializeField] Image deathFlashOverlay;
     [SerializeField] Image cooldownIndicator;
+    [SerializeField] VirtualJoystick joystick;
+    [SerializeField] TouchAimFire touchAimFire;
 
     Rigidbody2D rb;
     bool controlsEnabled = true;
     float nextFireTime;
     Vector2 facingDirection = Vector2.down;
     Vector3 spawnPosition;
+
+    public Vector2 FacingDirection => facingDirection;
+    public bool ControlsEnabled => controlsEnabled;
+    public bool IsInMossZone { get; set; }
 
     void Awake()
     {
@@ -40,11 +46,37 @@ public class HybridPlayerController : MonoBehaviour
 
         if (!controlsEnabled) return;
 
-        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && Time.time >= nextFireTime)
+        bool desktopFire = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+        bool touchFire = touchAimFire != null && touchAimFire.ConsumeFireTrigger();
+
+        if (touchFire && touchAimFire.AimDirection.sqrMagnitude > 0.01f)
         {
-            Fire();
-            nextFireTime = Time.time + pingCooldown;
+            // Drag-based aiming is independent of movement direction, per the
+            // mobile control scheme - override facing only when the trigger
+            // actually came from a touch drag release, not a desktop click.
+            facingDirection = touchAimFire.AimDirection;
+            if (facingIndicator != null)
+            {
+                facingIndicator.localPosition = facingDirection * indicatorOffset;
+            }
         }
+
+        if (desktopFire || touchFire)
+        {
+            TryFirePing();
+        }
+    }
+
+    // Shared cooldown-gated entry point - desktop mouse click, mobile drag
+    // release, and the mobile ping button (see PingButton.OnClick) all funnel
+    // through here, same pattern as DecoyThrow.TryThrow().
+    public void TryFirePing()
+    {
+        if (!controlsEnabled) return;
+        if (Time.time < nextFireTime) return;
+
+        Fire();
+        nextFireTime = Time.time + pingCooldown;
     }
 
     void FixedUpdate()
@@ -65,6 +97,13 @@ public class HybridPlayerController : MonoBehaviour
             if (kb.dKey.isPressed) input.x += 1f;
         }
 
+        // Joystick is a fallback, not an override - WASD (desktop/editor testing)
+        // always wins if both happen to be active at once.
+        if (input.sqrMagnitude < 0.01f && joystick != null)
+        {
+            input = joystick.InputVector;
+        }
+
         if (input.sqrMagnitude > 0.01f)
         {
             facingDirection = input.normalized;
@@ -74,7 +113,11 @@ public class HybridPlayerController : MonoBehaviour
             }
         }
 
-        rb.linearVelocity = input.normalized * moveSpeed;
+        // ClampMagnitude(input, 1f) is equivalent to the old input.normalized for
+        // WASD's discrete +-1 axes (diagonal magnitude 1.41 -> clamped to 1, same
+        // as normalized; single-axis magnitude 1 -> unchanged either way), while
+        // also preserving the joystick's partial-push magnitude for analog speed.
+        rb.linearVelocity = Vector2.ClampMagnitude(input, 1f) * moveSpeed;
     }
 
     void Fire()
@@ -86,6 +129,12 @@ public class HybridPlayerController : MonoBehaviour
         if (projectileRb != null)
         {
             projectileRb.linearVelocity = facingDirection * projectileSpeed;
+        }
+
+        PingProjectile ping = projectile.GetComponent<PingProjectile>();
+        if (ping != null)
+        {
+            ping.SetDampened(IsInMossZone);
         }
     }
 
