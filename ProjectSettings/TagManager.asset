@@ -6,6 +6,8 @@ TagManager:
   tags:
   - Wall
   - Enemy
+  - CrackedWall
+  - MossZone
   layers:
   - Default
   - TransparentFX

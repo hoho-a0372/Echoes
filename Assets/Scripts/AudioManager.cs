@@ -5,7 +5,11 @@ public class AudioManager : MonoBehaviour
     public static AudioManager Instance { get; private set; }
 
     [SerializeField] AudioClip pingLaunch;
-    [SerializeField] AudioClip wallHit;
+    [SerializeField] AudioClip normalWallClip;
+    [SerializeField] AudioClip crackedWallClip;
+    [SerializeField] AudioClip monsterClip;
+    [SerializeField] AudioClip wallBreak;
+    [SerializeField] AudioClip decoyLand;
     [SerializeField] AudioClip enemyReveal;
     [SerializeField] AudioClip playerDeath;
     [SerializeField] AudioClip stageClear;
@@ -32,12 +36,37 @@ public class AudioManager : MonoBehaviour
         PlayOneShot(pingLaunch);
     }
 
-    public void PlayWallHit(float distance)
+    public void PlayNormalWallHit(float distance)
     {
-        if (wallHit == null || audioSource == null) return;
+        PlayDelayedClip(normalWallClip, distance);
+    }
+
+    public void PlayCrackedWallHit(float distance)
+    {
+        PlayDelayedClip(crackedWallClip, distance);
+    }
+
+    public void PlayMonsterHit(float distance)
+    {
+        PlayDelayedClip(monsterClip, distance);
+    }
+
+    void PlayDelayedClip(AudioClip clip, float distance)
+    {
+        if (clip == null || audioSource == null) return;
         float delay = Mathf.Max(0f, distance / speedOfSound);
-        audioSource.clip = wallHit;
+        audioSource.clip = clip;
         audioSource.PlayDelayed(delay);
+    }
+
+    public void PlayWallBreak()
+    {
+        PlayOneShot(wallBreak);
+    }
+
+    public void PlayDecoyLand()
+    {
+        PlayOneShot(decoyLand);
     }
 
     public void PlayEnemyReveal()

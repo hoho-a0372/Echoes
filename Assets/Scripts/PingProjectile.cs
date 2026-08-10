@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
@@ -8,6 +9,12 @@ public class PingProjectile : MonoBehaviour
     [SerializeField] float flashDuration = 0.4f;
     [SerializeField] float lifespan = 4f;
     [SerializeField] float RevealDuration = 0.7f;
+    [SerializeField] bool dampened;
+
+    // Noise event for ShadowEnemy's ChaseNoise state - mirrors
+    // DecoyObject.OnDecoySpawned's (position, radius) shape. Not raised at all
+    // when dampened (a moss-absorbed ping makes no sound to chase).
+    public static event Action<Vector2, float> OnPingHit;
 
     Light2D light2D;
     float initialOuterRadius;
@@ -33,22 +40,55 @@ public class PingProjectile : MonoBehaviour
         }
     }
 
+    public void SetDampened(bool value)
+    {
+        dampened = value;
+    }
+
     void OnCollisionEnter2D(Collision2D col)
     {
-        // Collisions are restricted to Wall via the physics layer matrix;
-        // this tag check is a defensive fallback.
-        if (!col.gameObject.CompareTag("Wall") && !col.gameObject.CompareTag("Enemy")) return;
+        bool isCrackedWall = col.gameObject.CompareTag("CrackedWall");
+        bool isWall = col.gameObject.CompareTag("Wall");
+        bool isMonster = col.gameObject.CompareTag("Enemy");
+        if (!isCrackedWall && !isWall && !isMonster) return;
 
         if (rb != null)
         {
             rb.linearVelocity = Vector2.zero;
         }
 
-        if (AudioManager.Instance != null)
+        // MossZone absorbs both light and sound - a dampened ping stays silent
+        // and never flashes, per the Day 6 design doc.
+        if (AudioManager.Instance != null && !dampened)
         {
             GameObject player = GameObject.FindWithTag("Player");
             float distance = player != null ? Vector2.Distance(transform.position, player.transform.position) : 0f;
-            AudioManager.Instance.PlayWallHit(distance);
+            if (isCrackedWall)
+            {
+                AudioManager.Instance.PlayCrackedWallHit(distance);
+            }
+            else if (isMonster)
+            {
+                AudioManager.Instance.PlayMonsterHit(distance);
+            }
+            else
+            {
+                AudioManager.Instance.PlayNormalWallHit(distance);
+            }
+        }
+
+        if (!dampened)
+        {
+            OnPingHit?.Invoke(transform.position, flashRadius);
+        }
+
+        if (isCrackedWall)
+        {
+            CrackedWall crackedWall = col.gameObject.GetComponent<CrackedWall>();
+            if (crackedWall != null)
+            {
+                crackedWall.RegisterHit();
+            }
         }
 
         if (CameraShake.Instance != null)
@@ -84,6 +124,16 @@ public class PingProjectile : MonoBehaviour
     {
         if (light2D == null)
         {
+            Destroy(gameObject);
+            yield break;
+        }
+
+        if (dampened)
+        {
+            // No light, no reveal - moss absorbs the flash entirely, but keep
+            // the same overall lifetime pacing as a normal hit.
+            light2D.intensity = 0f;
+            yield return new WaitForSeconds(flashDuration);
             Destroy(gameObject);
             yield break;
         }
