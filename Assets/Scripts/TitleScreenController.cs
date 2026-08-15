@@ -14,7 +14,7 @@ public class TitleScreenController : MonoBehaviour
             starting = true;
             if (GameManager.Instance != null)
             {
-                GameManager.Instance.StartGame();
+                GameManager.Instance.GoToStageSelect();
             }
         }
     }

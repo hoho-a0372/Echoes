@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class StageExit : MonoBehaviour
 {
@@ -39,9 +40,35 @@ public class StageExit : MonoBehaviour
 
         yield return new WaitForSeconds(nextStageDelay);
 
+        int stageIndex = GetCurrentStageIndex();
+        if (ProgressManager.Instance != null)
+        {
+            ProgressManager.Instance.MarkStageCleared(stageIndex);
+        }
+
+        // With Stage Select in place, clearing a stage returns the player to
+        // the select screen (their choice what to play next) instead of
+        // auto-chaining into "the next stage" - except on the last stage,
+        // which still goes to the EndScreen. See the Day 7 checklist entry.
+        int stageCount = SceneManager.sceneCountInBuildSettings - 3; // exclude Title, StageSelect, End
+        bool isFinalStage = stageIndex >= stageCount;
+
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.LoadNextStage();
+            if (isFinalStage)
+            {
+                GameManager.Instance.LoadEndScreen();
+            }
+            else
+            {
+                GameManager.Instance.GoToStageSelect();
+            }
         }
+    }
+
+    int GetCurrentStageIndex()
+    {
+        string sceneName = SceneManager.GetActiveScene().name;
+        return int.Parse(sceneName.Substring("Stage".Length));
     }
 }

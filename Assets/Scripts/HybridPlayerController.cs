@@ -2,29 +2,34 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class HybridPlayerController : MonoBehaviour
 {
     [SerializeField] float moveSpeed = 5f;
-    [SerializeField] float projectileSpeed = 10f;
+    [SerializeField] float projectileSpeed = 20f;
     [SerializeField] GameObject projectilePrefab;
     [SerializeField] float pingCooldown = 1.5f;
     [SerializeField] Transform facingIndicator;
     [SerializeField] float indicatorOffset = 0.4f;
     [SerializeField] Image deathFlashOverlay;
-    [SerializeField] Image cooldownIndicator;
+    [SerializeField] Image pingCooldownIndicator;
     [SerializeField] VirtualJoystick joystick;
     [SerializeField] TouchAimFire touchAimFire;
 
     Rigidbody2D rb;
     bool controlsEnabled = true;
     float nextFireTime;
-    Vector2 facingDirection = Vector2.down;
+    Vector2 facingDirection = Vector2.up;
     Vector3 spawnPosition;
 
     public Vector2 FacingDirection => facingDirection;
     public bool ControlsEnabled => controlsEnabled;
     public bool IsInMossZone { get; set; }
+
+    // Fired whenever a ping actually launches (cooldown passed) - used by
+    // PingTooltip to know when to dismiss the "how to ping" onboarding hint.
+    public static event System.Action OnPingFired;
 
     void Awake()
     {
@@ -38,10 +43,10 @@ public class HybridPlayerController : MonoBehaviour
 
     void Update()
     {
-        if (cooldownIndicator != null)
+        if (pingCooldownIndicator != null)
         {
             float remaining = nextFireTime - Time.time;
-            cooldownIndicator.fillAmount = 1f - Mathf.Clamp01(remaining / pingCooldown);
+            pingCooldownIndicator.fillAmount = 1f - Mathf.Clamp01(remaining / pingCooldown);
         }
 
         if (!controlsEnabled) return;
@@ -77,6 +82,7 @@ public class HybridPlayerController : MonoBehaviour
 
         Fire();
         nextFireTime = Time.time + pingCooldown;
+        OnPingFired?.Invoke();
     }
 
     void FixedUpdate()
@@ -106,11 +112,11 @@ public class HybridPlayerController : MonoBehaviour
 
         if (input.sqrMagnitude > 0.01f)
         {
+            float angle = Mathf.Atan2(input.x, input.y) * Mathf.Rad2Deg;
+            transform.rotation = Quaternion.Euler(0, 0, -angle);
             facingDirection = input.normalized;
-            if (facingIndicator != null)
-            {
-                facingIndicator.localPosition = facingDirection * indicatorOffset;
-            }
+            // angle > 0 : facing right / angle < 0 facing left
+            // Animation 변경하기
         }
 
         // ClampMagnitude(input, 1f) is equivalent to the old input.normalized for
@@ -173,6 +179,9 @@ public class HybridPlayerController : MonoBehaviour
 
         transform.position = spawnPosition;
         SetControlsEnabled(true);
+
+        string currentSceneName = SceneManager.GetActiveScene().name;
+        SceneManager.LoadScene(currentSceneName);
     }
 
     IEnumerator FlashOverlay()

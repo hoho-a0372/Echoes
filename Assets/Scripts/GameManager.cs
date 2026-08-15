@@ -33,38 +33,41 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public void StartGame()
+    [SerializeField] string stageSelectSceneName = "StageSelect";
+
+    // Title's "press any key" now leads to Stage Select, not straight into
+    // Stage1 - see the Day 7 checklist entry. Doesn't touch the timer; that
+    // now starts on the first actual stage entry (LoadStage), not on
+    // leaving Title, since sitting in a menu shouldn't count as play time.
+    public void GoToStageSelect()
+    {
+        TransitionTo(() => SceneManager.LoadScene(stageSelectSceneName));
+    }
+
+    // Stage Select buttons route through here (instead of a bare
+    // SceneManager.LoadScene) so they keep the existing fade transition and
+    // keep currentStageIndex/the elapsed-time timer meaningful.
+    public void LoadStage(int stageIndex)
     {
         TransitionTo(() =>
         {
-            currentStageIndex = 1;
-            totalElapsedTime = 0f;
-            timerRunning = true;
-            LoadStageByIndex(currentStageIndex);
+            if (!timerRunning)
+            {
+                totalElapsedTime = 0f;
+                timerRunning = true;
+            }
+            currentStageIndex = stageIndex;
+            SceneManager.LoadScene("Stage" + stageIndex);
         });
     }
 
-    public void LoadNextStage()
+    public void LoadEndScreen()
     {
         TransitionTo(() =>
         {
-            currentStageIndex++;
-            int stageCount = SceneManager.sceneCountInBuildSettings - 2; // exclude Title + End
-            if (currentStageIndex > stageCount)
-            {
-                timerRunning = false;
-                SceneManager.LoadScene(endSceneName);
-            }
-            else
-            {
-                LoadStageByIndex(currentStageIndex);
-            }
+            timerRunning = false;
+            SceneManager.LoadScene(endSceneName);
         });
-    }
-
-    void LoadStageByIndex(int stageIndex)
-    {
-        SceneManager.LoadScene("Stage" + stageIndex);
     }
 
     void TransitionTo(System.Action loadAction)

@@ -13,6 +13,7 @@ public class AudioManager : MonoBehaviour
     [SerializeField] AudioClip enemyReveal;
     [SerializeField] AudioClip playerDeath;
     [SerializeField] AudioClip stageClear;
+    [SerializeField] AudioClip collectiblePickup;
 
     const float speedOfSound = 20f;
 
@@ -82,6 +83,11 @@ public class AudioManager : MonoBehaviour
     public void PlayStageClear()
     {
         PlayOneShot(stageClear);
+    }
+
+    public void PlayCollectiblePickup()
+    {
+        PlayOneShot(collectiblePickup);
     }
 
     void PlayOneShot(AudioClip clip)
