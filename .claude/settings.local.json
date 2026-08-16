@@ -5,13 +5,16 @@
       "mcp__unity-mcp__Unity_RunCommand",
       "mcp__unity-mcp__Unity_GetConsoleLogs",
       "Bash(git commit -m 'add prototype')",
-      "Bash(git commit -m 'fix tile lighting / change object to prefab')"
+      "Bash(git commit -m 'fix tile lighting / change object to prefab')",
+      "Read(//c/Users/hyowon/AppData/Roaming/npm/node_modules/@anthropic-ai/**)",
+      "Read(//c/Users/hyowon/AppData/Local/Microsoft/WinGet/Links/**)",
+      "Bash(git status *)"
     ]
   },
   "enabledMcpjsonServers": [
     "mcp-unity"
   ],
   "enabledPlugins": {
-    "andrej-karpathy-skills@karpathy-skills": true
+    "andrej-karpathy-skills@karpathy-skills": false
   }
 }

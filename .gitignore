@@ -49,3 +49,14 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Asset Store purchases/downloads.
+# These are licensed third-party content, not this project's own work, and
+# aren't ours to redistribute via the git server. Each contributor re-imports
+# them locally from the Asset Store / Package Manager instead. List each pack
+# by its import folder as it's added to the project:
+/[Aa]ssets/Modern GDR - Free icons pack/
+/[Aa]ssets/Modern GDR - Free icons pack.meta
+/[Aa]ssets/PlatformerSet1/
+/[Aa]ssets/PlatformerSet1.meta
+/[Aa]ssets/Tiles/*

@@ -1,5 +1,7 @@
 # Prototype Build — Progress
 
+**Repo policy:** Asset Store packages (e.g. `Modern GDR - Free icons pack`, `PlatformerSet1`) are gitignored, not committed — they're licensed third-party content, not this project's own work. Re-import them from the Asset Store / Package Manager locally rather than pulling them from git; see `.gitignore`'s "Asset Store purchases/downloads" section for the current list.
+
 **Overall: Days 1–5 all code/scene work complete and verified.** Two things remain before this is a fully playable build: (1) import real `AudioClip` assets and drag them onto `AudioManager`'s 5 fields (Day 4's manual fallback — no code changes needed), and (2) a real in-Editor playtest of the full Title→Stage1→Stage2→Stage3→End flow, since headless MCP sessions can't drive a live cross-scene sequence (see Day 5's Testing note).
 
 ## Day 1
