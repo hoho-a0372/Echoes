@@ -565,3 +565,315 @@ None outstanding for 6.1-6.6 - every error/exception/limitation hit this session
 - Decoy object and moss zone both use placeholder art (tinted/scaled `WallTile.png`) pending real sprites - added to the Priority 3 (6.11) art shopping list, alongside whatever 6.11 itself identifies.
 - No real device/Unity Remote touch test for 6.5's joystick/drag-aim.
 - **No manual in-Editor Play-mode test yet for 6.6's `NavMeshAgent` pathing - highest-priority manual follow-up.**
+
+## Day 8 — UI Navigation, Enemy Wander, Proximity Reveal
+- [x] 8.1 Restart button (in-stage reset)
+- [x] 8.2 Back button (return to Stage Select)
+- [x] 8.3 Enemy Wander mode enhancement
+- [x] 8.4 Proximity-based dim reveal (ambient glow) + ping full reveal (tiered)
+
+All four complete: scripts written, pause UI built and wired into all 5 stage
+scenes, console clean throughout, and the `ProgressManager` cross-reload
+survival assumption confirmed live in real Play mode (not just structurally
+argued - see the updated 8.1/8.2 detail below). 8.3/8.4's own Play-mode
+walkthrough (watching an enemy wander/idle-look/reveal for 30-60s) was not
+done - see "Not independently re-verified" below, consistent with this
+project's standing pattern for anything needing a live, human-timed
+observation rather than a scripted check.
+
+### 8.1/8.2 detail — PauseMenu
+- **`Assets/Scripts/PauseMenu.cs`** (new): shared pause menu per the master
+  prompt's default. Toggled by a persistent on-screen pause button (mouse or
+  touch) and, for desktop, Escape (`Keyboard.current.escapeKey`) - this
+  project already supports both desktop and mobile input side by side
+  everywhere else (`HybridPlayerController`), so PauseMenu follows suit
+  rather than picking one scheme.
+- `Pause()`: `Time.timeScale=0`, shows `pausePanel`, and additionally calls
+  `player.SetControlsEnabled(false)` - `Time.timeScale=0` alone does not stop
+  `Update()`-driven input reads (ping fire, decoy throw both read
+  `Keyboard`/touch state in `Update`, not `FixedUpdate`), so without this a
+  paused player could still fire through the menu. Remembers the pre-pause
+  `ControlsEnabled` value and restores exactly that on `Resume()` (not an
+  unconditional re-enable), so this composes correctly if pause is ever
+  reachable while `Die()`/`StageExit` have already disabled controls for
+  their own reasons.
+- `Restart()`: resets `Time.timeScale=1` then
+  `SceneManager.LoadScene(SceneManager.GetActiveScene().name)` - reloading
+  recreates every per-scene object from scratch (enemies, cracked walls,
+  player position) with no manual reset code.
+- `BackToStageSelect()`: resets `Time.timeScale=1` then loads `"StageSelect"`.
+- **`ProgressManager` survival - confirmed live in real Play mode**, per the
+  master prompt's explicit "verify this assumption holds, don't just
+  assume." First attempt (via `EditorSceneManager.OpenScene`, not Play mode)
+  correctly failed with `ProgressManager.Instance == null` - `Awake()` never
+  runs for edit-mode-opened scene objects (same class of limitation logged
+  repeatedly since Day 7.2/7.3), so the `DontDestroyOnLoad` singleton simply
+  doesn't exist outside real Play mode. Redone properly: opened
+  `TitleScreen.unity`, set `EditorApplication.isPlaying = true` (confirmed
+  actually entered Play mode - `GameManager.Instance`/`ProgressManager.Instance`
+  both non-null afterward), then via `Unity_RunCommand`:
+  `ProgressManager.Instance.MarkCollectibleFound("test_day8_verify")` →
+  `SceneManager.LoadScene("Stage1")` → re-checked `IsCollectibleFound` →
+  `True` → reloaded the active scene again (simulating `PauseMenu.Restart()`)
+  → re-checked again → still `True`. Confirms the assumption across two real
+  scene loads, not just one. (Minor, unexplained aside: the active scene
+  read back as `StageSelect` rather than `Stage1` immediately after the
+  first `LoadScene("Stage1")` call within that same command - most likely a
+  `TitleScreenController`/`GoToStageSelect` transition already in flight
+  from residual input state in this long-running Play session, not a
+  `ProgressManager` issue; the persistence result itself was unaffected
+  either way.) Test id cleaned up from `PlayerPrefs["FoundCollectibles"]`
+  before exiting Play mode (confirmed real save data - 12 legitimate found
+  collectibles - was otherwise undisturbed); confirmed
+  `EditorApplication.isPlaying=False`/`isPaused=False` after exiting.
+
+### 8.4 revision (user-requested, after initial build): fixed alpha instead of tiered/proximity-computed
+User feedback while testing: the ping-reveal alpha was being dynamically
+computed every frame (via the Hidden/Dim/Revealed tier composition) rather
+than being a fixed value, and the default state should be Dim, not Hidden.
+
+- **`ShadowEnemy.cs` simplified**: removed the whole Tier-1 proximity system
+  (`ambientGlowRadius`/`ambientGlowRadiusFallback`, the player-`Light2D`
+  lookup, `dimActive`/`TickDimReveal`/`DimCheckInterval`, and the
+  per-frame `ApplyVisibility()` recomputation). `dimAlpha=0.35` (same value,
+  field renamed from `ambientDimAlpha`) is now the enemy's **constant
+  baseline** - always visible at that dim level, no longer gated by distance
+  to the player's ambient glow.
+- **`Reveal(duration)`** now sets a fixed `SetAlpha(1f)` once, then a
+  coroutine (`DimAfter`, replacing the old per-frame tier check) sets a
+  fixed `SetAlpha(dimAlpha)` once after `duration` - alpha is set exactly
+  twice per ping-reveal, never recomputed on a tick.
+- **`using UnityEngine.Rendering.Universal;`** removed (no longer needed -
+  `Light2D` isn't referenced anymore). 8.3's proximity-hearing tick
+  (`TickProximityHearing`, unrelated to visibility) is untouched.
+- The 8.4 "balance check" note logged earlier (dim-reveal radius vs.
+  hearing-boost radius) is now moot - dim is no longer distance-based.
+- **Verified**: compiles clean (post-refresh type-lookup); live-checked on
+  Stage3's real `EnemySet` instance - `dimAlpha` correctly still reads
+  `0.35` despite the field rename (its default initializer matches the old
+  serialized value, so no behavior regression from the rename itself).
+- **Not re-verified in Play mode**: same standing gap as the rest of 8.4 -
+  code-reviewed and field-value-confirmed, not watched live.
+
+### 8.1/8.2 scene wiring (all 5 stages)
+Built once on `Stage1.unity`, verified, then replicated identically to
+`Stage2-5.unity` (same "open, add, wire, save" pattern as Day 7.3/6.2-style
+per-scene UI work). Per stage, added to the existing `Canvas`:
+- **`PauseButton`**: top-right corner (`anchorMin=anchorMax=pivot=(1,1)`,
+  `anchoredPosition=(-20,-20)`, `60x60`), dark semi-transparent square
+  (`RGBA(0.15,0.15,0.15,0.85)`) with a `"II"` TMP label - no dedicated pause
+  icon sprite exists in this project's art yet, so plain text was used
+  rather than reusing an unrelated icon (`DecoyButton`/`PingButton`'s
+  `ToggleOff_Bright` sprite doesn't fit). Placed top-right specifically to
+  avoid the existing bottom-right `DecoyButton`/`PingButton`/cooldown-indicator
+  cluster.
+- **`PausePanel`**: full-screen dim background (`anchorMin=(0,0)`,
+  `anchorMax=(1,1)`, `RGBA(0,0,0,0.75)`), starts `SetActive(false)`.
+  Contains three centered buttons (`260x60`, light gray `RGBA(0.9,0.9,0.9,0.95)`,
+  black TMP labels), stacked vertically 70px apart: `ResumeButton`,
+  `RestartButton`, `BackToSelectButton`. These are this project's first
+  text-labeled gameplay buttons (every existing button - `DecoyButton`,
+  `PingButton`, Stage Select's stage buttons - is icon/color-only); flagging
+  as a small, deliberate style departure rather than matching precedent that
+  didn't fit ("Resume"/"Restart"/"Back to Select" don't have obvious icons).
+- **Wiring**: a `PauseMenu` component was added directly to each scene's
+  `Canvas` GameObject (not a separate dedicated object - Canvas already acts
+  as this project's per-scene UI root, e.g. hosting `PingTooltip`/`DarknessIntroText`
+  directly), with `pausePanel` assigned via `SerializedObject`. Each button's
+  `onClick` was wired via `UnityEditor.Events.UnityEventTools.AddPersistentListener`
+  (so it's a real persistent listener, not a runtime-only subscription) to
+  `PauseMenu.TogglePause`/`Resume`/`Restart`/`BackToStageSelect` respectively.
+  Verified after every save: `SerializedObject`-read `pausePanel` reference
+  correct, all 4 buttons report exactly 1 persistent listener each with the
+  correct method name, `PausePanel.activeSelf=False` by default. Re-verified
+  identically across all 5 stages in one final pass. Console clean after
+  every scene save (checked via `Unity_GetConsoleLogs`, filtered against the
+  benign `[Command Cache]` noise already documented in this project's
+  tooling notes).
+
+### 8.3/8.4 detail — ShadowEnemy.cs rewrite
+Both features land in the same file since both extend the Wander state /
+sprite-visibility logic. Tuning values (all `[SerializeField]`, overridable
+per-enemy-instance in the Inspector like this project's other tunables):
+
+- **Wander waypoints**: `PickWanderPoint()` now uses
+  `NavMesh.SamplePosition` to validate/snap a random point in `wanderRadius`
+  (previously an unvalidated `Random.insideUnitCircle` target), and rejects a
+  candidate within `wanderPointSeparationFactor * wanderRadius` of any of the
+  last `WanderHistorySize=3` points actually visited (up to 5 resample
+  attempts, falls back to spawnPosition if all 5 fail). `wanderPointSeparationFactor=0.4`
+  - chosen as a fraction of `wanderRadius` rather than an absolute distance
+  because this project's per-stage `wanderRadius` already varies 2f-6f
+  (Stage4 vs Stage5); an absolute separation would have made Stage4's tight
+  radius nearly unsatisfiable.
+- **Proximity hearing boost**: `proximityHearingMultiplier=1.4` (midpoint of
+  the requested 1.3-1.5x range) applied when the player is within
+  `proximityHearingTriggerFactor=2.0 * hearingRadius`, ticked every
+  `HearingCheckInterval=0.3s`, and **only while Wandering** (resets to 1x on
+  entering any other state) - this is specifically a passive-wander-tension
+  mechanic, not a change to actual noise-hearing (ping/decoy `noiseRadius`
+  still caps it via `Mathf.Min`, unchanged).
+- **Idle-look sub-state**: `idleLookChance=0.4` (40%) per wander-cycle,
+  `idleLookMinDuration=0.5`/`idleLookMaxDuration=1.5`. Implemented as a
+  coroutine (`IdleLookThenMove`) that sets `agent.isStopped=true`, flips
+  `SpriteRenderer.flipX` as a placeholder "turned to look" cue (no
+  directional sprite system exists in this project yet), waits the random
+  duration, then resumes toward the already-picked wander target.
+  **Interruption handled explicitly**: `EnterChasePlayer`/`EnterChaseDecoy`/
+  `EnterReturnToStart` all call a new `CancelIdleLook()` first (stops the
+  coroutine, clears `isStopped`) - without this, a ping/decoy noise arriving
+  mid-idle-look would let the stale coroutine's `MoveTo` call fire later and
+  silently override the chase destination just set.
+- **Tiered visibility (8.4)**: rewrote `Reveal()`/the old `HideAfter`
+  coroutine into a priority-composed system per the master prompt's spec -
+  `ApplyVisibility()` computes `alpha` fresh each frame as
+  `Hidden(0) < Dim(ambientDimAlpha) < Revealed(1, time-limited via
+  revealedUntil)`, so the two tiers never fight. `ambientDimAlpha=0.35`
+  (middle of the requested 0.3-0.4 range). Switched `SpriteRenderer` from
+  toggling `.enabled` to always-`enabled=true` with alpha-driven visibility -
+  this project's own Day 2.5 Patch lesson (`enabled=false` silently drops a
+  GameObject from URP 2D's render list, which also affects any `Light2D` on
+  the same object) doesn't directly apply here (`ShadowEnemy` has no
+  per-enemy light), but alpha-based hiding is what the two-tier composition
+  needs anyway, and it's the established project convention for this exact
+  situation.
+- **Ambient glow radius source**: read live from the Player's own `Light2D`
+  (`player.GetComponent<Light2D>().pointLightOuterRadius`) at `Start()`,
+  falling back to a serialized `ambientGlowRadiusFallback=0.5` if the Player
+  or its Light2D can't be found - per the master prompt's explicit
+  "read this value from HybridPlayerController's Light2D component" option.
+  **Confirmed live via `Unity_RunCommand`**: `Player.prefab`'s root `Light2D`
+  reads `outerRadius=0.5, intensity=0.3` (matches the Day 2 design value used
+  as the fallback). Also found, and deliberately left alone as out of scope:
+  a **second, undocumented `Light2D`** on a child object of `Player.prefab`
+  (`outerRadius=3, intensity=20`, name has a leading space - `" Light 2D"`)
+  that doesn't match any documented feature. Not used for anything in Day 8;
+  flagging for awareness only.
+- **Balance check (8.4's own request)**: at default per-stage values, the
+  dim tier (`ambientGlowRadius≈0.5`) triggers well inside the boosted
+  hearing-proximity tier (`2x hearingRadius` = 16 units at the default
+  `hearingRadius=8`, down to 4-6 units on Stage4/5's tightened values) - the
+  player can be sensed passively long before they're close enough to see
+  anything dim. This is **the intended relationship**, not a numbers
+  mismatch: hearing-boost is meant to create tension at a distance, dim
+  reveal is meant to reward genuinely close, careful approach. No balance
+  concern to flag.
+- **Tick intervals**: `HearingCheckInterval=0.3s`, `DimCheckInterval=0.15s` -
+  both per-enemy timers (not global), logged per the master prompt's request;
+  picked from the low end of the suggested ranges since this project's
+  current max enemy count per stage is 3 (Stage5), where per-frame cost
+  isn't yet a real concern, but ticking is still cheap insurance.
+
+### Error log
+#### [Tooling] Error: `Unity_RunCommand` scripts failed with `CS8805: Program using top-level statements must be an executable`
+- **Where**: every `Unity_RunCommand` call this session, initially.
+- **What happened**: even a trivial one-line `Debug.Log(...)` script failed
+  compilation with `CS8805`.
+- **Root cause**: this session's `Unity_RunCommand` tool requires the
+  "golden template" (`internal class CommandScript : IRunCommand` with
+  `Execute(ExecutionResult result)`), not bare top-level statements - the
+  tool auto-appends a wrapping `namespace` block that's invalid alongside
+  top-level statements. This differs from how prior sessions' checklist
+  entries describe using this class of tool; the exact required shape
+  wasn't obvious from the tool description alone until reading its
+  full schema.
+- **Fix applied**: used the golden template for every command from then on.
+- **Prevented by**: always use `internal class CommandScript : IRunCommand`
+  with `void Execute(ExecutionResult result)` for any future
+  `Unity_RunCommand` call in this project - never bare top-level statements.
+
+#### [Tooling] Error: `'Image' is a namespace but is used like a type` (CS0118)
+- **Where**: a `Unity_RunCommand` inspection script referencing `Image`
+  bare (for `GetComponent<Image>()`).
+- **What happened**: compile error, same class of issue logged repeatedly
+  since Day 3/Day 5/post-6.6.
+- **Root cause**: unchanged from those prior entries - a bare `Image` in a
+  script that also creates/references GameObjects resolves to the
+  `UnityEngine.UI` namespace-in-context ambiguity, not the type, in this
+  project's specific script-globals setup.
+- **Fix applied**: fully-qualified `UnityEngine.UI.Image`.
+- **Prevented by**: (unchanged from prior entries) always fully-qualify
+  `UnityEngine.UI.Image` in any `Unity_RunCommand`/`Unity_RunCommand`-style
+  script in this project.
+
+#### [Scene wiring] Finding (not a Day 8 bug): `Assets/Scenes/Stage1.unity` currently has every real gameplay root object disabled
+- **Where**: `Assets/Scenes/Stage1.unity`, discovered while looking up the
+  Canvas hierarchy to build the pause-menu UI (not caused by anything in
+  this Day 8 session - no scene file was opened with intent to modify before
+  this was found, and it was found on the *first* open).
+- **What happened**: `EditorSceneManager.OpenScene("Assets/Scenes/Stage1.unity")`
+  loads correctly (`isLoaded=True`, `rootCount=14`), but every one of the 13
+  real root GameObjects (`Main Camera`, `Player`, `Canvas`, `EventSystem`,
+  `Goal`, `AudioManager`, `NavMeshGeometry`, both `Collectible_stage1_*`,
+  `DarknessIntro`, `BackgroundGrid`, `MapGrid`) reads `activeSelf=False`.
+  The only **active** root object is one named
+  `(untitled backup)-1786090142 (1)_0` (`SpriteRenderer`+`Animator`, no
+  other project script). `git diff --stat` confirms `Stage1.unity` is
+  currently modified-but-uncommitted on disk (494500 -> 500912 bytes,
+  reported as a binary diff by git) - this predates this Day 8 session
+  entirely; nothing in this session wrote to that file before the finding.
+- **Root cause (inferred, not confirmed)**: the object's name matches
+  Unity's own auto-generated naming for a scene recovered from its
+  crash-recovery/backup mechanism. The most likely explanation is that an
+  Editor crash-recovery prompt was accepted (in this session's connected
+  Editor instance, or a prior one) and the recovered content got saved over
+  `Stage1.unity`, disabling the real scene content in the process. This is
+  a guess, not a confirmed root cause - I did not attempt to dig further
+  since fixing/investigating scene corruption is outside this prompt's
+  scope (8.1-8.4 only) and touches a file state the user hasn't seen yet.
+- **Fix applied**: **none by this session - deliberately left as-is at the
+  time.** Re-enabling the 13 disabled objects would have been simple, but
+  there was no way to confirm that was the correct fix (vs. discarding
+  whatever the active backup object represented) without the user's input,
+  and it wasn't something this prompt asked to be touched. Confirmed at the
+  time this was isolated to `Stage1.unity` - `git status` showed every other
+  scene file (`Stage2-5`, `TitleScreen`, `StageSelect`, `EndScreen`) clean.
+- **Resolution**: resolved outside this session, by the user, between the
+  finding being reported and scene-wiring work resuming - re-checked live
+  and `Stage1.unity` now has all 13 real objects active again (rootCount
+  14→13, the backup object is gone). Scene wiring proceeded normally once
+  this was confirmed.
+- **Prevented by**: n/a - was a scene-file issue outside this session's
+  code, not a code-level bug.
+
+## Notes / decisions
+- **[8.1]** Pause menu (not a persistent corner Restart button) chosen per
+  the master prompt's own default, since it also hosts 8.2's Back button.
+- **[8.1]** Input scheme: pause button (mouse+touch) + Escape (desktop),
+  matching this project's existing side-by-side (not platform-exclusive)
+  input support.
+- **[8.2]** No exit-confirmation dialog, per the master prompt's explicit
+  instruction to skip it for this pass.
+- **[8.3]** See tuning values in the 8.3/8.4 detail section above.
+- **[8.4]** See tuning values and the balance-check conclusion in the
+  8.3/8.4 detail section above.
+- **[8.4]** `SpriteRenderer` visibility switched from `.enabled` toggling to
+  always-enabled + alpha, to support tier composition - see detail above.
+
+## Day 8 status: complete
+Scripts written, pause UI built and wired into all 5 stage scenes,
+`ProgressManager` survival confirmed live in real Play mode, console clean
+throughout. See the detail sections above for exactly what was verified vs.
+what still needs a manual pass.
+
+### Not independently re-verified (manual follow-up)
+- **8.1/8.2 full interactive pass**: button wiring and the `ProgressManager`
+  survival case were verified (persistent listeners present with correct
+  method names; a real Play-mode reload test passed), but actually clicking
+  `PauseButton`/`Resume`/`Restart`/`Back to Select` with a mouse/touch and
+  watching the panel show/hide was not done - inherits this project's
+  standing "can't drive a live UI click through headless MCP" limitation
+  (same class of gap logged for `DecoyButton`/`PingButton`/Stage Select
+  buttons back in Day 7).
+- **8.3 Wander variety/idle-look, live-observed**: the tuning values and
+  interruption-safety logic (`CancelIdleLook`) were verified by reading the
+  component's serialized fields and by code inspection, not by watching an
+  enemy for 30-60s in real Play mode as the master prompt's Verify step
+  asked. **Recommend a manual in-Editor Play-mode watch of a Stage3/4/5
+  enemy** - same class of gap as 6.6's still-outstanding NavMeshAgent
+  Play-mode check.
+- **8.4 Tiered reveal, live-observed**: same gap - the alpha-composition
+  logic was verified by code review and by confirming the exact tuning
+  values live on a real `ShadowEnemy` instance (Stage3), but walking up to
+  an enemy and firing a ping to see Dim→Revealed→Dim/Hidden happen on
+  screen was not done.
