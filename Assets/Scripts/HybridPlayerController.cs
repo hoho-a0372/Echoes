@@ -18,6 +18,8 @@ public class HybridPlayerController : MonoBehaviour
     [SerializeField] TouchAimFire touchAimFire;
 
     Rigidbody2D rb;
+    SpriteRenderer sr;
+    Animator animator;
     bool controlsEnabled = true;
     float nextFireTime;
     Vector2 facingDirection = Vector2.up;
@@ -34,6 +36,8 @@ public class HybridPlayerController : MonoBehaviour
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        sr = GetComponent<SpriteRenderer>();
+        animator = GetComponent<Animator>();
     }
 
     void Start()
@@ -90,6 +94,7 @@ public class HybridPlayerController : MonoBehaviour
         if (!controlsEnabled)
         {
             rb.linearVelocity = Vector2.zero;
+            if (animator != null) animator.SetFloat("velocity", 0f);
             return;
         }
 
@@ -112,11 +117,16 @@ public class HybridPlayerController : MonoBehaviour
 
         if (input.sqrMagnitude > 0.01f)
         {
-            float angle = Mathf.Atan2(input.x, input.y) * Mathf.Rad2Deg;
-            transform.rotation = Quaternion.Euler(0, 0, -angle);
             facingDirection = input.normalized;
-            // angle > 0 : facing right / angle < 0 facing left
-            // Animation 변경하기
+
+            // Left/right flip only - vertical-only movement (input.x ~ 0)
+            // keeps whichever way the character was last facing, rather than
+            // snapping back to a default, since the walk/idle sprites are a
+            // side-view cycle with no distinct up/down art.
+            if (Mathf.Abs(input.x) > 0.01f && sr != null)
+            {
+                sr.flipX = input.x < 0f;
+            }
         }
 
         // ClampMagnitude(input, 1f) is equivalent to the old input.normalized for
@@ -124,6 +134,8 @@ public class HybridPlayerController : MonoBehaviour
         // as normalized; single-axis magnitude 1 -> unchanged either way), while
         // also preserving the joystick's partial-push magnitude for analog speed.
         rb.linearVelocity = Vector2.ClampMagnitude(input, 1f) * moveSpeed;
+
+        if (animator != null) animator.SetFloat("velocity", rb.linearVelocity.magnitude);
     }
 
     void Fire()

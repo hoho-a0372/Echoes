@@ -877,3 +877,109 @@ what still needs a manual pass.
   values live on a real `ShadowEnemy` instance (Stage3), but walking up to
   an enemy and firing a ping to see Dim→Revealed→Dim/Hidden happen on
   screen was not done.
+
+## Character animation (idle/walk) + directional flip (user-requested)
+
+User had already built `idle`/`walk` `AnimationClip`s and an Animator
+Controller (`Assets/Animation/Player.controller`, wired to `Player.prefab`)
+in the Editor - `velocity` (Float) and `isJumping` (Bool, unused so far)
+parameters, `idle`↔`walk` transitions at `velocity` `</>` `0.1`, default
+state `idle`. Nothing in code was driving `velocity`, and there was no
+left/right flip logic - `HybridPlayerController.FixedUpdate()`'s Day 7
+rotation-based facing (`transform.rotation = Quaternion.Euler(...)`) was
+still in place, which doesn't suit a side-view walk-cycle sprite (a sprite
+rotated to "face up/down" looks wrong under a walk animation designed to
+only ever be viewed from the side).
+
+**Found and did not touch**: a stale duplicate `Assets/Player.controller` +
+`Assets/walk.anim` at the project root (not the ones actually wired to
+`Player.prefab` - that's `Assets/Animation/Player.controller`). Leftover
+from however the user organized these into `Assets/Animation/`; flagging in
+case the user wants them deleted, not removed here since it wasn't asked.
+
+**Design question asked and answered**: whether to keep the existing
+rotation-facing and add flip on top, or replace rotation with flip-only.
+User chose **replace** (recommended option) - full rotation and a
+walk-cycle sprite don't compose visually.
+
+**`Assets/Scripts/HybridPlayerController.cs` changes**:
+- Added `SpriteRenderer sr` and `Animator animator` fields, fetched in
+  `Awake()` alongside the existing `rb`.
+- Removed the rotation block entirely (`transform.rotation = ...`, and the
+  stray `// Animation 처리하기` TODO comment it carried - this request *is*
+  that TODO). `facingDirection` is still updated the same way (still used
+  by `Fire()` for ping direction, untouched).
+- New flip logic: `sr.flipX = input.x < 0f`, applied **only when
+  `Mathf.Abs(input.x) > 0.01f`** - purely-vertical movement (`input.x ≈ 0`)
+  leaves the flip as whatever it last was, rather than resetting to a
+  default, since there's no distinct up/down art to switch to.
+- `animator.SetFloat("velocity", rb.linearVelocity.magnitude)` set every
+  `FixedUpdate` right after the velocity assignment, and separately set to
+  `0f` in the early-return branch when `!controlsEnabled` (so the Animator
+  correctly settles on `idle` while controls are disabled - death flash,
+  pause, stage-clear - instead of holding whatever `velocity` value was live
+  the instant controls got disabled).
+
+**Verified live in real Play mode** (Stage1, `EditorApplication.isPlaying = true`,
+input driven via `InputSystem.QueueEvent`/`StateEvent.From` + a forced
+`SendMessage("FixedUpdate")` per step - the established pattern for this
+project's headless input tests):
+- Holding D: `flipX=False`, `velocity=5`, `rb.linearVelocity=(5,0)`.
+- Holding A: `flipX=True`, `velocity=5`, `rb.linearVelocity=(-5,0)`.
+- Releasing all keys: `flipX` stays `True` (correctly retains last
+  horizontal facing), `velocity=0`, `rb.linearVelocity=(0,0)` - matches the
+  Animator's `idle` transition condition.
+- Console clean throughout (checked via `Unity_GetConsoleLogs`, filtered
+  against the standing `[Command Cache]` noise).
+- Note: Stage1's `DarknessIntro` had `ControlsEnabled=False` at the moment
+  testing started (its onboarding sequence disables the player until it
+  finishes) - the test explicitly force-enabled controls via
+  `SetControlsEnabled(true)` to drive this check, since that's a Day 7
+  behavior unrelated to what was being verified here. Play mode was exited
+  immediately after (no scene/asset state was saved, so this had no lasting
+  effect).
+
+### Not independently re-verified
+- Visual confirmation that the `idle`/`walk` sprites themselves look correct
+  when flipped (no asymmetric visual elements that would look wrong
+  mirrored) - not something inspectable via component values.
+
+#### [Animation] Bug: walk animation intermittently never plays (user-reported)
+- **Where**: `Assets/Animation/Player.controller`'s `idle`→`walk` and
+  `walk`→`idle` transitions.
+- **What happened**: user reported the walk animation "doesn't apply" in
+  some cases despite the character actually moving.
+- **Root cause**: both transitions had `hasExitTime=True` - a transition
+  with `hasExitTime` can only become eligible once the *source* state's
+  playback reaches a specific point in its loop, regardless of when its
+  condition becomes true. `idle`→`walk`'s `exitTime=0.7857` on a 1s `idle`
+  clip meant the transition only opened ~0.79s into whatever point of the
+  idle loop was playing when movement started - up to a ~0.79s delay per
+  loop cycle. If the player moved for *less* than that (a quick tap, a
+  short reposition - very plausible in this project's stealth pacing),
+  `velocity` had already dropped back to 0 by the time the exit-time gate
+  opened, so the condition was no longer true at the only moment it was
+  checked - the transition never fired at all, and the character silently
+  stayed in `idle` despite genuinely moving the whole time. `hasExitTime` is
+  meant for animations that should finish before being interrupted (e.g. an
+  attack); it's the wrong tool for a continuously-driven locomotion
+  parameter like `velocity`.
+- **Fix applied**: set `hasExitTime=false` on both transitions via
+  `Unity_RunCommand` (`AnimatorStateTransition.hasExitTime`), kept
+  `duration=0.25` for the existing crossfade blend, saved the controller
+  asset. Transitions now evaluate their `velocity` condition continuously
+  and fire immediately, regardless of loop position.
+- **Verified live in real Play mode** (Stage1): a single-`FixedUpdate` tap
+  (far shorter than the old ~0.79s gate) now shows `animator.IsInTransition(0)=True`
+  immediately after `velocity` becomes nonzero (confirmed via
+  `Animator.Update(deltaTime)`, called directly since `SendMessage` doesn't
+  drive Unity's own Animator playable-graph evaluation - a testing-method
+  finding worth keeping for future animation checks in this project).
+  Holding past the 0.25s blend confirmed landing fully in `walk`; releasing
+  confirmed an immediate transition back to `idle`, landing fully in `idle`
+  after another 0.25s. Console clean throughout.
+- **Prevented by**: for any Animator transition driven by a live/continuous
+  parameter (as opposed to a one-shot trigger meant to let an animation
+  finish), use `hasExitTime=false` - reserve `hasExitTime=true` for
+  transitions that should genuinely wait for the current clip to reach a
+  point before interrupting it.
