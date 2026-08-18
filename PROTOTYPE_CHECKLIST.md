@@ -983,3 +983,91 @@ project's headless input tests):
   finish), use `hasExitTime=false` - reserve `hasExitTime=true` for
   transitions that should genuinely wait for the current clip to reach a
   point before interrupting it.
+
+## Audio delay removed (user-reported: "audio has a delay")
+
+`AudioManager.PlayNormalWallHit`/`PlayCrackedWallHit`/`PlayMonsterHit` had a
+deliberate "speed of sound" simulation from Day 4/6.1: `PlayDelayedClip`
+called `audioSource.PlayDelayed(distance / speedOfSound)` with
+`speedOfSound=20`, `distance` = ping-hit-position to Player. Across this
+project's ~30-unit-wide stages that's up to ~1.5s of delay before a wall/
+monster-hit sound plays - almost certainly what read as "delay". Nothing
+else used `distance` (not volume attenuation, just this).
+
+- **Fix**: removed `speedOfSound`/`PlayDelayedClip` entirely from
+  `AudioManager.cs`; `PlayNormalWallHit()`/`PlayCrackedWallHit()`/
+  `PlayMonsterHit()` are now parameterless and use the same immediate
+  `PlayOneShot` as every other sound in this file.
+- **`PingProjectile.cs`**: removed the `GameObject.FindWithTag("Player")` +
+  `Vector2.Distance` calc in `OnCollisionEnter2D` (it existed solely to feed
+  the now-removed delay) and updated the three call sites to the
+  parameterless methods.
+- **Verified**: compiles clean (post-refresh type-lookup on both scripts),
+  console clean, confirmed no other callers of the old
+  `distance`-taking signatures or `PlayDelayed`/`speedOfSound` anywhere in
+  `Assets/Scripts`.
+
+## Bug: enemies walk straight through CrackedWall (user-reported, found live in Stage4)
+
+- **Where**: `Assets/Prefabs/CrackedWall_x12.prefab`, used in Stage2/3/4/5.
+- **What happened**: user was playtesting Stage4 (Play mode was active when
+  reported - confirmed live) and observed an enemy pass straight through an
+  unbroken `CrackedWall_x12`.
+- **Root cause**: `CrackedWall_x12` only had `SpriteRenderer`/`BoxCollider2D`/
+  `CrackedWall` - no `NavMeshModifier` or `NavMeshObstacle`. `ShadowEnemy`
+  moves by directly setting `transform.position` from
+  `NavMeshAgent.nextPosition` (`agent.updatePosition=false` - see the Day
+  6.6 XZ/XY conversion note), not via Rigidbody2D physics, so a physical
+  `BoxCollider2D` alone does nothing to block it - only the baked NavMesh
+  itself can. The 5-Stage Level Design section of this checklist documents
+  cracked walls being NavMeshModifier-marked obstacles for the *old* 3-stage
+  layout's cracked-wall setup, but `CrackedWall_x12` (the prefab actually
+  used by the current 5-stage scenes) never had that modifier - it was
+  either a later replacement prefab or the setting was lost along the way;
+  not investigated further since the fix is the same either way.
+- **Fix applied**:
+  1. Added `NavMeshModifier` to `CrackedWall_x12.prefab` via
+     `PrefabUtility.LoadPrefabContents`/`SaveAsPrefabAsset`:
+     `overrideArea=true`, `area=NavMesh.GetAreaFromName("Not Walkable")`
+     (resolved to area index 1, not hardcoded).
+  2. Rebaked `NavMeshSurface.BuildNavMesh()` and saved all four affected
+     scenes (Stage2/3/4/5) - a modifier only affects *future* bakes, so the
+     already-baked NavMesh data needed regenerating.
+- **Verified**: `NavMesh.SamplePosition` at the exact `CrackedWall_x12`
+  position (0.3 radius, `NavMesh.AllAreas`) now returns `found=False` in
+  both Stage3 and Stage4 (Stage4 being the exact scene the bug was
+  reported in) - confirms the NavMesh no longer has any surface there at
+  all, not just a non-walkable-flagged one. Player movement is entirely
+  unaffected (physics-based via `Rigidbody2D`/`BoxCollider2D`, never used
+  NavMesh) - this only changes enemy pathing. Console clean throughout.
+  Play mode was exited to make this fix (user's active Stage4 session was
+  interrupted with explicit confirmation first) and not resumed
+  automatically.
+- **Not independently re-verified**: an actual enemy re-approaching the
+  crack and visibly routing around it in real Play mode (as opposed to the
+  NavMesh-absence check above) - same standing "needs eyes-on Play-mode
+  watch" gap as 6.6/8.3's other enemy-behavior items.
+- **Prevented by**: any future wall/obstacle prefab meant to block
+  `ShadowEnemy` (or any NavMeshAgent-driven mover) needs a `NavMeshModifier`
+  (or `NavMeshObstacle`) - a physics collider alone is not sufficient in
+  this project, since enemy movement bypasses physics entirely.
+
+## Ping firing changed to button-only (user-requested)
+
+Request: clicking/tapping anywhere on screen (other than the Ping button)
+should no longer fire a ping - only the button should.
+
+- **`HybridPlayerController.cs`**: removed `desktopFire` (`Mouse.current.leftButton.wasPressedThisFrame`)
+  entirely from `Update()` - this previously fired on *any* left click
+  anywhere, including over UI (pause menu, panels, etc.), with no
+  "is this over UI" check. `PingButton`'s `onClick` was already wired
+  directly to `TryFirePing()` (confirmed live, unaffected by this change),
+  so button-press firing is untouched.
+- **Deliberately left alone**: `TouchAimFire`/`TouchAimZone`'s drag-to-aim-
+  then-release-to-fire mechanic (Day 6.5) - it's a distinct, named mobile
+  control scheme, not "clicking the screen" in the sense the request
+  described, and the request didn't mention drag/aim. If this should also
+  go button-only, say so explicitly.
+- **Verified**: compiles clean (post-refresh type-lookup), console clean,
+  and re-confirmed `PingButton`'s persistent listener still targets
+  `HybridPlayerController.TryFirePing` directly (Stage1).
