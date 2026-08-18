@@ -70,7 +70,7 @@ public class Collectible : MonoBehaviour, IRevealable
         revealCoroutine = StartCoroutine(DimAfter(duration));
     }
 
-    public IEnumerator DimAfter(float duration)
+    IEnumerator DimAfter(float duration)
     {
         yield return new WaitForSeconds(duration);
         SetAlpha(dimAlpha);
@@ -83,8 +83,6 @@ public class Collectible : MonoBehaviour, IRevealable
 
     void SetAlpha(float alpha)
     {
-        SpriteRenderer sr = GetComponent<SpriteRenderer>();
-
         if (sr == null) return;
         Color c = sr.color;
         c.a = alpha;

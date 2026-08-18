@@ -3,12 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
-interface IRevealable 
+interface IRevealable
 {
-
     void Reveal(float duration);
-
-    IEnumerator DimAfter(float duration);
 }
 
 
@@ -96,16 +93,7 @@ public class ShadowEnemy : MonoBehaviour, IRevealable
         spawnPosition = transform.position;
         if (agent != null)
         {
-            bool warped = agent.Warp(GameToNav(transform.position));
-            bool foundNearby = NavMesh.SamplePosition(GameToNav(transform.position), out NavMeshHit hit, 50f, NavMesh.AllAreas);
-            Debug.Log($"[NavDebug] {name} agent.enabled={agent.enabled} navTarget={GameToNav(transform.position)} " +
-                $"warpOk={warped} isOnNavMesh={agent.isOnNavMesh} nearestNavMeshFound={foundNearby} " +
-                $"nearestPos={(foundNearby ? hit.position.ToString() : "n/a")} " +
-                $"nearestDist={(foundNearby ? Vector3.Distance(GameToNav(transform.position), hit.position).ToString("F2") : "n/a")}");
-        }
-        else
-        {
-            Debug.Log($"[NavDebug] {name} has no NavMeshAgent component");
+            agent.Warp(GameToNav(transform.position));
         }
 
         player = GameObject.FindWithTag("Player");
@@ -412,7 +400,7 @@ public class ShadowEnemy : MonoBehaviour, IRevealable
         }
     }
 
-    public IEnumerator DimAfter(float duration)
+    IEnumerator DimAfter(float duration)
     {
         yield return new WaitForSeconds(duration);
         SetAlpha(dimAlpha);
