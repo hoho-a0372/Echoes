@@ -10,7 +10,6 @@ public class HybridPlayerController : MonoBehaviour
     [SerializeField] float projectileSpeed = 20f;
     [SerializeField] GameObject projectilePrefab;
     [SerializeField] float pingCooldown = 1.5f;
-    [SerializeField] Transform facingIndicator;
     [SerializeField] float indicatorOffset = 0.4f;
     [SerializeField] Image deathFlashOverlay;
     [SerializeField] Image pingCooldownIndicator;
@@ -55,7 +54,12 @@ public class HybridPlayerController : MonoBehaviour
 
         if (!controlsEnabled) return;
 
-        bool desktopFire = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+        // Clicking/tapping anywhere on screen no longer fires a ping - only
+        // PingButton's onClick (-> TryFirePing directly) and the touch
+        // drag-to-aim release below do. A bare screen click used to fire via
+        // Mouse.current.leftButton.wasPressedThisFrame regardless of what was
+        // under the cursor (including UI like the pause menu), which is the
+        // behavior this removes.
         bool touchFire = touchAimFire != null && touchAimFire.ConsumeFireTrigger();
 
         if (touchFire && touchAimFire.AimDirection.sqrMagnitude > 0.01f)
@@ -64,13 +68,9 @@ public class HybridPlayerController : MonoBehaviour
             // mobile control scheme - override facing only when the trigger
             // actually came from a touch drag release, not a desktop click.
             facingDirection = touchAimFire.AimDirection;
-            if (facingIndicator != null)
-            {
-                facingIndicator.localPosition = facingDirection * indicatorOffset;
-            }
         }
 
-        if (desktopFire || touchFire)
+        if (touchFire)
         {
             TryFirePing();
         }
