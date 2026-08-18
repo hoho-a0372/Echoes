@@ -4,6 +4,7 @@ public class CrackedWall : MonoBehaviour
 {
     [SerializeField] int hitsToBreak = 3;
     [SerializeField] GameObject brokenVisualPrefab;
+    [SerializeField] GameObject NavmeshWall;
 
     int remainingHits;
     bool broken;
@@ -49,6 +50,11 @@ public class CrackedWall : MonoBehaviour
         if (brokenVisualPrefab != null)
         {
             Instantiate(brokenVisualPrefab, transform.position, transform.rotation);
+        }
+
+        if (NavmeshWall != null) 
+        {
+            NavmeshWall.SetActive(false);
         }
 
         if (AudioManager.Instance != null)
