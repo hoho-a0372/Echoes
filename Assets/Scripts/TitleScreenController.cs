@@ -10,7 +10,7 @@ public class TitleScreenController : MonoBehaviour
         if (starting) return;
 
         if (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame
-            || Input.touchCount > 0)
+            || (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame))
         {
             starting = true;
             if (GameManager.Instance != null)
