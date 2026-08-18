@@ -75,6 +75,19 @@ public class ProgressManager : MonoBehaviour
         PlayerPrefs.Save();
     }
 
+    // Wipes saved progress back to a fresh save. Clears the in-memory mirrors
+    // too, not just PlayerPrefs, since this singleton is already alive
+    // (DontDestroyOnLoad) when called and never re-reads PlayerPrefs after Awake().
+    public void ResetProgress()
+    {
+        highestClearedStage = 0;
+        foundCollectibles.Clear();
+
+        PlayerPrefs.DeleteKey(HighestClearedKey);
+        PlayerPrefs.DeleteKey(CollectiblesKey);
+        PlayerPrefs.Save();
+    }
+
     public bool IsCollectibleFound(string collectibleId)
     {
         return foundCollectibles.Contains(collectibleId);

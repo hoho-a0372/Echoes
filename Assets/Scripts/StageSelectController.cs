@@ -18,7 +18,34 @@ public class StageSelectController : MonoBehaviour
     [SerializeField] Color unlockedColor = new Color(0.25f, 0.55f, 0.9f);
     [SerializeField] Color lockedColor = new Color(0.3f, 0.3f, 0.3f);
 
+    [SerializeField] Button resetProgressButton;
+    [SerializeField] GameObject resetConfirmPanel;
+    [SerializeField] Button resetConfirmYesButton;
+    [SerializeField] Button resetConfirmNoButton;
+
     void Start()
+    {
+        RefreshStageButtons();
+
+        foreach (var sb in stageButtons)
+        {
+            int stageIndex = sb.stageIndex;
+            sb.button.onClick.AddListener(() =>
+            {
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.LoadStage(stageIndex);
+                }
+            });
+        }
+
+        if (resetConfirmPanel != null) resetConfirmPanel.SetActive(false);
+        if (resetProgressButton != null) resetProgressButton.onClick.AddListener(ShowResetConfirm);
+        if (resetConfirmYesButton != null) resetConfirmYesButton.onClick.AddListener(ConfirmReset);
+        if (resetConfirmNoButton != null) resetConfirmNoButton.onClick.AddListener(HideResetConfirm);
+    }
+
+    void RefreshStageButtons()
     {
         foreach (var sb in stageButtons)
         {
@@ -40,15 +67,23 @@ public class StageSelectController : MonoBehaviour
                 int total = ProgressManager.Instance.GetCollectibleTotalForStage(sb.stageIndex);
                 sb.collectibleCountText.text = found + "/" + total;
             }
-
-            int stageIndex = sb.stageIndex;
-            sb.button.onClick.AddListener(() =>
-            {
-                if (GameManager.Instance != null)
-                {
-                    GameManager.Instance.LoadStage(stageIndex);
-                }
-            });
         }
+    }
+
+    void ShowResetConfirm()
+    {
+        if (resetConfirmPanel != null) resetConfirmPanel.SetActive(true);
+    }
+
+    void HideResetConfirm()
+    {
+        if (resetConfirmPanel != null) resetConfirmPanel.SetActive(false);
+    }
+
+    void ConfirmReset()
+    {
+        if (ProgressManager.Instance != null) ProgressManager.Instance.ResetProgress();
+        HideResetConfirm();
+        RefreshStageButtons();
     }
 }
