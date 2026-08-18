@@ -61,19 +61,17 @@ public class PingProjectile : MonoBehaviour
         // and never flashes, per the Day 6 design doc.
         if (AudioManager.Instance != null && !dampened)
         {
-            GameObject player = GameObject.FindWithTag("Player");
-            float distance = player != null ? Vector2.Distance(transform.position, player.transform.position) : 0f;
             if (isCrackedWall)
             {
-                AudioManager.Instance.PlayCrackedWallHit(distance);
+                AudioManager.Instance.PlayCrackedWallHit();
             }
             else if (isMonster)
             {
-                AudioManager.Instance.PlayMonsterHit(distance);
+                AudioManager.Instance.PlayMonsterHit();
             }
             else
             {
-                AudioManager.Instance.PlayNormalWallHit(distance);
+                AudioManager.Instance.PlayNormalWallHit();
             }
         }
 

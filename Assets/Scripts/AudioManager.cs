@@ -15,8 +15,6 @@ public class AudioManager : MonoBehaviour
     [SerializeField] AudioClip stageClear;
     [SerializeField] AudioClip collectiblePickup;
 
-    const float speedOfSound = 20f;
-
     AudioSource audioSource;
 
     void Awake()
@@ -37,27 +35,19 @@ public class AudioManager : MonoBehaviour
         PlayOneShot(pingLaunch);
     }
 
-    public void PlayNormalWallHit(float distance)
+    public void PlayNormalWallHit()
     {
-        PlayDelayedClip(normalWallClip, distance);
+        PlayOneShot(normalWallClip);
     }
 
-    public void PlayCrackedWallHit(float distance)
+    public void PlayCrackedWallHit()
     {
-        PlayDelayedClip(crackedWallClip, distance);
+        PlayOneShot(crackedWallClip);
     }
 
-    public void PlayMonsterHit(float distance)
+    public void PlayMonsterHit()
     {
-        PlayDelayedClip(monsterClip, distance);
-    }
-
-    void PlayDelayedClip(AudioClip clip, float distance)
-    {
-        if (clip == null || audioSource == null) return;
-        float delay = Mathf.Max(0f, distance / speedOfSound);
-        audioSource.clip = clip;
-        audioSource.PlayDelayed(delay);
+        PlayOneShot(monsterClip);
     }
 
     public void PlayWallBreak()
