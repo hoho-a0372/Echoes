@@ -57,6 +57,20 @@ crashlytics-build.properties
 # by its import folder as it's added to the project:
 /[Aa]ssets/Modern GDR - Free icons pack/
 /[Aa]ssets/Modern GDR - Free icons pack.meta
+
 /[Aa]ssets/PlatformerSet1/
 /[Aa]ssets/PlatformerSet1.meta
+
+/[Aa]ssets/Basic RPG Sounds/
+/[Aa]ssets/Basic RPG Sounds.meta
+
+/[Aa]ssets/VFX_FirelyFlare/
+/[Aa]ssets/VFX_FirelyFlare.meta
+
+/[Aa]ssets/Timofei Shukshin/
+/[Aa]ssets/Timofei Shukshin.meta
+
+/[Aa]ssets/Enemy Galore 1 - Pixel Art/
+/[Aa]ssets/Enemy Galore 1 - Pixel Art.meta
+
 /[Aa]ssets/Tiles/*
