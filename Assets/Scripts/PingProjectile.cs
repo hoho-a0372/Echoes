@@ -149,10 +149,10 @@ public class PingProjectile : MonoBehaviour
         Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, flashRadius);
         foreach (Collider2D hit in hits)
         {
-            ShadowEnemy enemy = hit.GetComponent<ShadowEnemy>();
-            if (enemy != null)
+            IRevealable revealable = hit.GetComponent<IRevealable>();
+            if (revealable != null)
             {
-                enemy.Reveal(RevealDuration);
+                revealable.Reveal(RevealDuration);
             }
         }
 

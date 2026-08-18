@@ -3,7 +3,16 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
-public class ShadowEnemy : MonoBehaviour
+interface IRevealable 
+{
+
+    void Reveal(float duration);
+
+    IEnumerator DimAfter(float duration);
+}
+
+
+public class ShadowEnemy : MonoBehaviour, IRevealable
 {
     // ChasePlayer (triggered by a ping hit) actively tracks the player's live
     // position for a fixed duration. ChaseDecoy (triggered by a decoy) paths to
@@ -37,6 +46,8 @@ public class ShadowEnemy : MonoBehaviour
     const int WanderHistorySize = 3;
     const int WanderResampleAttempts = 5;
     const float HearingCheckInterval = 0.3f;
+    
+    Coroutine revealCoroutine;
 
     NavMeshAgent agent;
     SpriteRenderer sr;
@@ -55,7 +66,6 @@ public class ShadowEnemy : MonoBehaviour
     float hearingMultiplier = 1f;
     float nextHearingCheckTime;
 
-    Coroutine revealCoroutine;
 
     void Awake()
     {
@@ -86,7 +96,16 @@ public class ShadowEnemy : MonoBehaviour
         spawnPosition = transform.position;
         if (agent != null)
         {
-            agent.Warp(GameToNav(transform.position));
+            bool warped = agent.Warp(GameToNav(transform.position));
+            bool foundNearby = NavMesh.SamplePosition(GameToNav(transform.position), out NavMeshHit hit, 50f, NavMesh.AllAreas);
+            Debug.Log($"[NavDebug] {name} agent.enabled={agent.enabled} navTarget={GameToNav(transform.position)} " +
+                $"warpOk={warped} isOnNavMesh={agent.isOnNavMesh} nearestNavMeshFound={foundNearby} " +
+                $"nearestPos={(foundNearby ? hit.position.ToString() : "n/a")} " +
+                $"nearestDist={(foundNearby ? Vector3.Distance(GameToNav(transform.position), hit.position).ToString("F2") : "n/a")}");
+        }
+        else
+        {
+            Debug.Log($"[NavDebug] {name} has no NavMeshAgent component");
         }
 
         player = GameObject.FindWithTag("Player");
@@ -279,7 +298,7 @@ public class ShadowEnemy : MonoBehaviour
     IEnumerator IdleLookThenMove(Vector3 navTarget)
     {
         isIdleLooking = true;
-        if (agent != null) agent.isStopped = true;
+        if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
 
         // No directional sprite system in this project yet - a flipX toggle is
         // a simple placeholder for "turned to look elsewhere" (Day 8.3 log).
@@ -301,7 +320,7 @@ public class ShadowEnemy : MonoBehaviour
             idleLookCoroutine = null;
         }
         isIdleLooking = false;
-        if (agent != null) agent.isStopped = false;
+        if (agent != null && agent.isOnNavMesh) agent.isStopped = false;
     }
 
     // Day 8.3 - passive proximity tension: while Wandering (only), an enemy's
@@ -393,7 +412,7 @@ public class ShadowEnemy : MonoBehaviour
         }
     }
 
-    IEnumerator DimAfter(float duration)
+    public IEnumerator DimAfter(float duration)
     {
         yield return new WaitForSeconds(duration);
         SetAlpha(dimAlpha);
