@@ -10,7 +10,6 @@ public class HybridPlayerController : MonoBehaviour
     [SerializeField] float projectileSpeed = 20f;
     [SerializeField] GameObject projectilePrefab;
     [SerializeField] float pingCooldown = 1.5f;
-    [SerializeField] float indicatorOffset = 0.4f;
     [SerializeField] Image deathFlashOverlay;
     [SerializeField] Image pingCooldownIndicator;
     [SerializeField] VirtualJoystick joystick;
